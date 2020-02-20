@@ -17,35 +17,35 @@ library("reshape")    # for melting data
 library("tidyr")
 
 #1. Import trip data and save pop and urbanicity vectors
-adm2.name<- read.csv('KEN_District_pop_coords_fid.csv')[c(1,2)] #  use different file because spelling of # 63 and 69 are different #details <- read.csv('KEN_adm2_coords_pop_urbanicity.csv')[c(1,5)]  
+adm2.name<- read.csv('KEN_District_pop_coords_fid.csv')[c('fid','ADM2_NAME')] #  use different file because spelling of # 63 and 69 are different #details <- read.csv('KEN_adm2_coords_pop_urbanicity.csv')[c(1,5)]  
 adm2.name$ADM2_NAME <- toupper(adm2.name$ADM2_NAME)
 adm2.name <- adm2.name[order(adm2.name$fid),]
 
-adm.details <- read.csv('KEN_adm2_coords_pop_urbanicity.csv')[c(1,9,18,19)]
+adm.details <- read.csv('KEN_adm2_coords_pop_urbanicity.csv')[c('fid','ADM1_NAME', 'X_coord', 'Y_coord')]#1,9,18,19)]
 adm.details <- left_join(adm2.name, adm.details, by = "fid")
 
-adm1.codes <- read.csv('KEN_adm1_coords.csv')[ , 4:5]
+adm1.codes <- read.csv('KEN_adm1_coords.csv')[ , c('ID_1','NAME_1')]
 adm.details <- left_join(adm.details, adm1.codes, by = c("ADM1_NAME" = "NAME_1"))
 colnames(adm.details) <- c("adm2_ID", "adm2_name", "adm1_name", "X_coord", "Y_coord", "adm1_ID")
 adm.details <- adm.details [ , c("adm1_ID", "adm1_name", "adm2_ID", "adm2_name", "X_coord", "Y_coord")]
 
 #2. define  population, and urbanicity files
-population <-  read.csv('KEN_adm2_coords_pop_urbanicity.csv')[c(1,14)]    # read.csv('KEN_District_pop_coords_fid.csv')[c(1,4)] #
+population <-  read.csv('KEN_adm2_coords_pop_urbanicity.csv')[c('fid','pop2010')]    # read.csv('KEN_District_pop_coords_fid.csv')[c(1,4)] #
 population.ordered <- population[order(population$fid),]
-urbanicity <- read.csv('KEN_adm2_coords_pop_urbanicity.csv')[c(1,17)]
+urbanicity <- read.csv('KEN_adm2_coords_pop_urbanicity.csv')[c('fid','urbanicity')]
 U.ordered <- urbanicity[order(urbanicity$fid),]
-U.ordered$urb.cat.2 <- ifelse(U.ordered[2] <= 0.001,  ## updated since ran model on cluster Dec 5 2019
+U.ordered$urb.cat.2 <- as.factor(ifelse(U.ordered$urbanicity <= 0.001,  ## updated since ran model on cluster Dec 5 2019
                             1,
-                            2)
+                            2))
 levels(U.ordered$urb.cat.2) <- c('Rural', 'Urban')
 
-U.ordered$urb.cat.3 <- as.integer(cut(U.ordered[,2],   # a way of binning subdistricts into districts for plotting
+U.ordered$urb.cat.3 <- as.factor(cut(U.ordered$urbanicity,   # a way of binning subdistricts into districts for plotting
                                     breaks = c(-Inf, exp(-7.5), exp(-3.75), Inf),
                                     labels = c(1,2,3)))
 levels(U.ordered$urb.cat.3) <- c('Low', 'Med', 'High')
 
 #3.  create full distance matrix, including places that might be omitted due to no trips
-coordinates <- adm.details[, c(3,5,6)] # read.csv('KEN_District_pop_coords_fid.csv')[c(1,5,6)] 
+coordinates <- adm.details[, c('adm2_ID', 'X_coord', 'Y_coord')] # read.csv('KEN_District_pop_coords_fid.csv')[c(1,5,6)] 
 D <- matrix(NA, nrow=dim(coordinates)[1], ncol=dim(coordinates)[1])
 D.deg <- matrix(NA, nrow=dim(coordinates)[1], ncol=dim(coordinates)[1])
 trip.type <- matrix(NA, nrow=dim(coordinates)[1], ncol=dim(coordinates)[1])
@@ -108,19 +108,19 @@ for (i in 1:dim(coordinates)[1]){
      
 }
 
-colnames(D) <- rownames(D) <- seq(1,69)
-colnames(D.deg) <- rownames(D.deg) <- seq(1,69)
-colnames(trip.type) <- rownames(trip.type) <- seq(1,69)
-colnames(trip.type.9) <- rownames(trip.type.9) <- seq(1,69)
-colnames(in.out) <- rownames(in.out) <- seq(1,69)
-colnames(in.out.urb2) <- rownames(in.out.urb2) <- seq(1,69)
-colnames(in.out.TT) <- rownames(in.out.TT) <- seq(1,69)
+colnames(D) <- rownames(D) <- unique(adm.details$adm2_ID)#seq(1,69)
+colnames(D.deg) <- rownames(D.deg) <- unique(adm.details$adm2_ID)#seq(1,69)
+colnames(trip.type) <- rownames(trip.type) <- unique(adm.details$adm2_ID)#seq(1,69)
+colnames(trip.type.9) <- rownames(trip.type.9) <- unique(adm.details$adm2_ID)#seq(1,69)
+colnames(in.out) <- rownames(in.out) <- unique(adm.details$adm2_ID)#seq(1,69)
+colnames(in.out.urb2) <- rownames(in.out.urb2) <- unique(adm.details$adm2_ID)#seq(1,69)
+colnames(in.out.TT) <- rownames(in.out.TT) <- unique(adm.details$adm2_ID)#seq(1,69)
 
-levels(trip.type) <- c('stay', 'rural-rural', 'rural-urban', 'urban-rural','urban-urban')
-levels(trip.type.9) <- c('stay','low-low', 'low-mid', 'low-high', 'mid-low', 'mid-mid', 'mid-high', 'high-low', 'high-mid', 'high-high')
-levels(in.out) <- c('stay','IN', 'OUT')
-levels(in.out.urb2) <- c('stay', 'IN-rural.start', 'IN-urban.start', 'OUT-rural.start', 'OUT-urban.start')
-levels(in.out.TT) <- c('stay','IN-rural-rural', 'OUT-rural-rural', 'IN-rural-urban', 'OUT-rural-urban', 'IN-urban-rural', 'OUT-urban-rural','IN-urban-urban', 'OUT-urban-urban' )
+# levels(trip.type) <- c('stay', 'rural-rural', 'rural-urban', 'urban-rural','urban-urban')
+# levels(trip.type.9) <- c('stay','low-low', 'low-mid', 'low-high', 'mid-low', 'mid-mid', 'mid-high', 'high-low', 'high-mid', 'high-high')
+# levels(in.out) <- c('stay','IN', 'OUT')
+# levels(in.out.urb2) <- c('stay', 'IN-rural.start', 'IN-urban.start', 'OUT-rural.start', 'OUT-urban.start')
+# levels(in.out.TT) <- c('stay','IN-rural-rural', 'OUT-rural-rural', 'IN-rural-urban', 'OUT-rural-urban', 'IN-urban-rural', 'OUT-urban-rural','IN-urban-urban', 'OUT-urban-urban' )
 
 # save(D, file = "KEN_distance_ordered.RData")
 # save(D, file = "KEN_distanceDeg_ordered.RData")
@@ -242,16 +242,6 @@ adm2.trip.month.summary <- adm2.trip.month.avg[, c("start.adm1.name", "start.adm
 
 #9. Create categories for origins, urbanicity, distance, and trip frequency
 
-adm2.trip.month.summary$urb.start.perc.col <- cut(adm2.trip.month.summary$urb.start,
-                                                  breaks = c(-Inf, exp(-7.5), exp(-3.75), Inf),
-                                                  labels = c(1,2,3))
-levels(adm2.trip.month.summary$urb.start.perc.col) <- c('Low', 'Med', 'High')
-
-adm2.trip.month.summary$urb.end.perc.col <- cut(adm2.trip.month.summary$urb.end,
-                                                breaks = c(-Inf, exp(-7.5), exp(-3.75), Inf),
-                                                labels = c(1,2,3))
-levels(adm2.trip.month.summary$urb.end.perc.col) <- c('Low', 'Med', 'High')
-
 adm2.trip.month.summary$distance.col <- cut(adm2.trip.month.summary$distance, 
                                             breaks = c(-Inf, 50, 100, 250, 500, 750, 1000, Inf ),
                                             labels = c("0:50", "50:100", "100:250", "250:500", "500:750","750:1000", "> 1000"))
@@ -261,38 +251,6 @@ adm2.trip.month.summary$trip.freq.col <- cut(adm2.trip.month.summary$adm2.single
                                              labels = c("< 0.001", "0.001 : 0.01", "0.01 : 0.1", "0.1 : 1"))
 
 # save(adm2.trip.month.summary, file = "KEN_adm2_monthly_trips_details.RData")
-
-## Proportion of travelers per month
-
-adm2.monthly.movers <- adm2.trip.month[adm2.trip.month$start.adm2.code == adm2.trip.month$end.adm2.code, -c( 6:9, 11:12, 19, 23:32)]
-adm2.monthly.movers <- adm2.monthly.movers[, c("start.adm1.name","start.adm2.name","start.adm1.code","start.adm2.code", "date", "d", "m", "y", "X_start", "Y_start", "pop.start", "urb.start", "urb.cat.2", "urb.cat.3", "adm2.single.trip.sum","adm2.all.trip.sum")]
-colnames(adm2.monthly.movers) <- c("start.adm1.name", "start.adm2.name", "start.adm1.code", "start.adm2.code", "date", "d", "Month", "y", "X_start", "Y_start", "pop.start", "urb.start", "urb.cat.2", "urb.cat.3", "adm2.monthly.stays", "adm2.monthly.total")
-
-adm2.monthly.movers$adm2.monthly.trips <- adm2.monthly.movers$adm2.monthly.total - adm2.monthly.movers$adm2.monthly.stays
-
-adm2.monthly.movers.avg <- adm2.monthly.movers %>%
-     group_by(start.adm2.code, Month) %>%
-     mutate(adm2.stays.monthly.avg = mean(adm2.monthly.stays)) %>%
-     mutate(adm2.trips.monthly.avg = mean(adm2.monthly.trips)) %>%
-     mutate(adm2.total.monthly.avg = mean(adm2.monthly.total)) %>%
-     mutate(adm2.stays.monthly.avg.prop = adm2.stays.monthly.avg/adm2.total.monthly.avg)%>%
-     mutate(adm2.trips.monthly.avg.prop = adm2.trips.monthly.avg/adm2.total.monthly.avg)%>%
-     mutate(season = ifelse(Month %in% (4:5), "Big rains",
-                            ifelse(Month %in% (10:12), "Small rains", "dry")))%>%
-     distinct(start.adm2.code, Month, .keep_all = TRUE)
-
-adm2.monthly.movers.avg <- adm2.monthly.movers.avg[, c("start.adm1.name","start.adm2.name", "start.adm1.code", "start.adm2.code", "Month", "date", "season", "X_start", "Y_start", "pop.start", 
-                                                       "urb.start", "urb.cat.2", "urb.cat.3", "adm2.stays.monthly.avg", "adm2.trips.monthly.avg", "adm2.total.monthly.avg",
-                                                       "adm2.stays.monthly.avg.prop", "adm2.trips.monthly.avg.prop")]
-adm2.monthly.movers.avg$urb.cat.2 <- as.factor(adm2.monthly.movers.avg$urb.cat.2); levels (adm2.monthly.movers.avg$urb.cat.2) <- c('Rural origin', 'Urban origin')
-adm2.monthly.movers.avg$urb.cat.3 <- as.factor(adm2.monthly.movers.avg$urb.cat.3); levels (adm2.monthly.movers.avg$urb.cat.3) <- c('Low urban origin', 'Medium urban origin', 'High urban origin')
-adm2.monthly.movers.avg$Month <- as.factor(adm2.monthly.movers.avg$Month)
-adm2.monthly.movers.avg$Month <- factor(adm2.monthly.movers.avg$Month,
-                                        levels = c("1", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"))
-levels(adm2.monthly.movers.avg$Month) <- c("1"="Jan", "3" = "Mar", "4" = "Apr", "5"="May", "6"= "Jun", "7"= "Jul","8"= "Aug","9"= "Sep", "10"= "Oct", "11"="Nov", "12"="Dec")
-
-
-# save(adm2.monthly.movers.avg, file = "KEN_monthly_mobile_props.RData")
 
 ## average trips for each month
 
@@ -345,38 +303,10 @@ adm2.trip.month.summary_NoStays <- adm2.trip.month.avg_NS[, c("start.adm1.name",
                                                               'adm2.single.trip.avg', 'adm2.single.trip.var', 'adm2.single.trip.coeffVar',
                                                               'adm2.single.trip.prop.avg', 'adm2.single.trip.prop.var')]
 
-# ## No stays - in vs out
-# adm2.in.out.month_NS <- adm2.trip.month_NS %>%                                           # sum trips that are "IN" or "OUT" of adm1
-#      group_by(start.adm2.code, in.out, m, y) %>%
-#      mutate(adm2.trip.in.out.sum = sum(adm2.single.trip.sum)) 
-# 
-# adm2.in.out.month_NS$adm2.in.out.prop <- adm2.in.out.month_NS$adm2.trip.in.out.sum/adm2.in.out.month_NS$adm2.all.trip.sum
-# 
-# adm2.in.out.month.avg_NS <- adm2.in.out.month_NS %>%
-#      group_by(start.adm2.code, in.out) %>%
-#      mutate(adm2.in.out.avg = mean(adm2.trip.in.out.sum)) %>%
-#      mutate(adm2.in.out.var = var(adm2.trip.in.out.sum)) %>%
-#      mutate(adm2.in.out.prop.avg = mean(adm2.in.out.prop)) %>%
-#      mutate(adm2.in.out.prop.var = var(adm2.in.out.prop)) %>%
-#      distinct(start.adm2.code, in.out, .keep_all = TRUE)
-# 
-# adm2.in.out.month.summary_NoStays <- adm2.in.out.month.avg_NS[,c(2:5,14,16, 20, 22, 24:29)]
-# 
-# save(adm2.in.out.month.summary_NoStays, file = "KEN_adm2_monthly_INvsOUT_trips_details_NoStays.RData")
 
 adm2.trip.month.summary_NoStays$origin.breaks <- cut(adm2.trip.month.summary_NoStays$start.adm1.code,   # a way of binning subdistricts into districts for plotting
                                                      breaks = c(-Inf, 19, 44, 68, 90, Inf),
-                                                     labels = c("1-19", "20-44", "45-68", "69-90","91-107"))
-
-adm2.trip.month.summary_NoStays$urb.start.perc.col <- cut(adm2.trip.month.summary_NoStays$urb.start,
-                                                          breaks = c(-Inf, exp(-10), exp(-2.5), Inf),
-                                                          labels = c(1,2,3))
-levels(adm2.trip.month.summary_NoStays$urb.start.perc.col) <- c('low', 'medium', 'high')
-
-adm2.trip.month.summary_NoStays$urb.end.perc.col <- cut(adm2.trip.month.summary_NoStays$urb.end,
-                                                        breaks = c(-Inf, exp(-10), exp(-2.5), Inf),
-                                                        labels = c(1,2,3))
-levels(adm2.trip.month.summary_NoStays$urb.end.perc.col) <- c('low', 'medium', 'high')
+                                                     labels = c("1-19", "20-44", "45-69"))
 
 adm2.trip.month.summary_NoStays$distance.col <- cut(adm2.trip.month.summary_NoStays$distance, 
                                                     breaks = c(-Inf, 50, 100, 250, 500, 750, 1000, Inf ),
@@ -388,3 +318,58 @@ adm2.trip.month.summary_NoStays$trip.freq.col <- cut(adm2.trip.month.summary_NoS
 
 
 # save(adm2.trip.month.summary_NoStays, file = "KEN_adm2_monthly_trips_details_NoStays.RData")
+
+### trip matrices
+
+trip.month.summary <- adm2.trip.month.avg[,c('start.adm2.code', 'end.adm2.code', 'adm2.single.trip.avg')]
+# save(trip.month.summary, file = "KEN_monthlytrips_counts_var_longform.RData")
+M.monthly <- reshape::cast(trip.month.summary, start.adm2.code ~ end.adm2.code)                 # create wide-form matrix
+rownames(M.monthly) <- M.monthly$start.adm2.code                           # label rows with district numbers
+M.monthly <- M.monthly[ ,-1]
+class(M.monthly) <- "data.frame"
+M.monthly <- as.matrix(M.monthly)
+names(dimnames(M.monthly)) <- c("origin", "destination")
+M.monthly[is.na(M.monthly)] <- 0
+
+# save(M.monthly, file = "KEN_monthly_trips.RData")
+
+M.monthly.no.stay <- M.monthly 
+diag(M.monthly.no.stay) <- 0                                     # set diagonol (stays) to 0
+names(dimnames(M.monthly.no.stay)) <- c("origin", "destination")
+M.monthly.no.stay[is.na(M.monthly.no.stay)] <- 0
+
+# save(M.monthly.no.stay, file = "KEN_monthly_trips_nostay.RData")
+# write.csv(M.monthly.no.stay, "KEN_monthly_trips_nostay.csv")
+
+
+## Proportion of population that travel per month
+
+adm2.monthly.movers <- adm2.trip.month[adm2.trip.month$start.adm2.code == adm2.trip.month$end.adm2.code, -c( 6:9, 11:12, 19, 23:32)]
+adm2.monthly.movers <- adm2.monthly.movers[, c("start.adm1.name","start.adm2.name","start.adm1.code","start.adm2.code", "date", "d", "m", "y", "X_start", "Y_start", "pop.start", "urb.start", "urb.cat.2", "urb.cat.3", "adm2.single.trip.sum","adm2.all.trip.sum")]
+colnames(adm2.monthly.movers) <- c("start.adm1.name", "start.adm2.name", "start.adm1.code", "start.adm2.code", "date", "d", "Month", "y", "X_start", "Y_start", "pop.start", "urb.start", "urb.cat.2", "urb.cat.3", "adm2.monthly.stays", "adm2.monthly.total")
+
+adm2.monthly.movers$adm2.monthly.trips <- adm2.monthly.movers$adm2.monthly.total - adm2.monthly.movers$adm2.monthly.stays
+
+adm2.monthly.movers.avg <- adm2.monthly.movers %>%
+     group_by(start.adm2.code, Month) %>%
+     mutate(adm2.stays.monthly.avg = mean(adm2.monthly.stays)) %>%
+     mutate(adm2.trips.monthly.avg = mean(adm2.monthly.trips)) %>%
+     mutate(adm2.total.monthly.avg = mean(adm2.monthly.total)) %>%
+     mutate(adm2.stays.monthly.avg.prop = adm2.stays.monthly.avg/adm2.total.monthly.avg)%>%
+     mutate(adm2.trips.monthly.avg.prop = adm2.trips.monthly.avg/adm2.total.monthly.avg)%>%
+     mutate(season = ifelse(Month %in% (4:5), "Big rains",
+                            ifelse(Month %in% (10:12), "Small rains", "dry")))%>%
+     distinct(start.adm2.code, Month, .keep_all = TRUE)
+
+adm2.monthly.movers.avg <- adm2.monthly.movers.avg[, c("start.adm1.name","start.adm2.name", "start.adm1.code", "start.adm2.code", "Month", "date", "season", "X_start", "Y_start", "pop.start", 
+                                                       "urb.start", "urb.cat.2", "urb.cat.3", "adm2.stays.monthly.avg", "adm2.trips.monthly.avg", "adm2.total.monthly.avg",
+                                                       "adm2.stays.monthly.avg.prop", "adm2.trips.monthly.avg.prop")]
+adm2.monthly.movers.avg$urb.cat.2 <- as.factor(adm2.monthly.movers.avg$urb.cat.2); levels (adm2.monthly.movers.avg$urb.cat.2) <- c('Rural origin', 'Urban origin')
+adm2.monthly.movers.avg$urb.cat.3 <- as.factor(adm2.monthly.movers.avg$urb.cat.3); levels (adm2.monthly.movers.avg$urb.cat.3) <- c('Low urban origin', 'Medium urban origin', 'High urban origin')
+adm2.monthly.movers.avg$Month <- as.factor(adm2.monthly.movers.avg$Month)
+adm2.monthly.movers.avg$Month <- factor(adm2.monthly.movers.avg$Month,
+                                        levels = c("1", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"))
+levels(adm2.monthly.movers.avg$Month) <- c("1"="Jan", "3" = "Mar", "4" = "Apr", "5"="May", "6"= "Jun", "7"= "Jul","8"= "Aug","9"= "Sep", "10"= "Oct", "11"="Nov", "12"="Dec")
+
+
+# save(adm2.monthly.movers.avg, file = "KEN_monthly_mobile_props.RData")
